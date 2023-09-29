@@ -158,9 +158,9 @@ def main():
             if not calibration_completed(hsv_limits):
                 instruction_text = form_calibration_instruction("blue")
             else:
-                instruction_text = "So far so good :)"
                 print(hsv_limits)
                 np.save('/home/lauri/Desktop/Kandi/RubiksCubeSolver/hsv_limits', hsv_limits)
+                break
 
     video.release()
     cv2.destroyAllWindows()
