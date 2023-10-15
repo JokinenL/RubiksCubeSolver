@@ -43,20 +43,38 @@ def get_sigle_color_limits(img):
     BGR_color = np.uint8([[img[center_h][center_w]]])
     HSV_color = cv2.cvtColor((BGR_color), cv2.COLOR_BGR2HSV)
     hue = HSV_color[0][0][0]
+    saturation = HSV_color[0][0][1]
+    value = HSV_color[0][0][2]
+    hue_marginal = 5
+    saturation_marginal = 20
+    value_marginal = 20
 
-    hue_low = hue - 2
-    hue_high = hue + 2
+    hue_low = hue - hue_marginal
+    hue_high = hue + hue_marginal
+    saturation_low = saturation - saturation_marginal
+    saturation_high = saturation + saturation_marginal
+    value_low = value - value_marginal
+    value_high = value + value_marginal
 
-    if hue_low < 0:
-        hue_low = 0
-        hue_high = 4
     
-    if hue_high > 180:
-        hue_high = 180
-        hue_low = 176
+    if saturation_low < 0:
+        saturation_low = 0
+        saturation_high = 2*saturation_marginal
+    
+    if saturation_high > 255:
+        saturation_high = 255
+        saturation_low = 255 - 2*saturation_marginal
 
-    low = [hue_low, 100, 100]
-    high = [hue_high, 255, 255]
+    if value_low < 0:
+        value_low = 0
+        value_high = 2*value_marginal
+    
+    if value_high > 255:
+        value_high = 255
+        value_low = 255-2*value_marginal
+
+    low = [hue_low, saturation_low, value_low]
+    high = [hue_high, saturation_high, value_high]
     limits = [low, high]
     return limits
 
