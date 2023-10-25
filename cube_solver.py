@@ -1,6 +1,7 @@
 import cv2
 import kociemba
 import numpy as np
+import math
 
 # initial_state = input("Enter the initial state of the cube: ")
 
@@ -41,8 +42,8 @@ low_o = np.array([2, 100, 100])
 high_o = np.array([15, 255, 255])
 low_y = np.array([20, 100, 100])
 high_y = np.array([40, 255, 255])
-low_w = np.array([105, 0, 100])
-high_w = np.array([145, 50, 255])
+low_w = np.array([120, 0, 150])
+high_w = np.array([180, 50, 255])
 
 def initialize_cube():
     cube = np.empty([6, 3, 3], '<U6')
@@ -87,8 +88,13 @@ def contour_in_contour(contour_a, contour_b):
         return True
     else:
         return False
-
     
+def distance(point_a, point_b):
+    x_a, y_a = point_a
+    x_b, y_b = point_b
+    dist = math.sqrt((x_a - x_b)**2 + (y_a - y_b)**2)
+    return dist
+
 def main():
 
     video = cv2.VideoCapture(0)
@@ -175,18 +181,35 @@ def main():
                         contours_i = piece_contour_info[color][0]
 
                         
-                        for contour_i in contours_i:
-                            
-                            area_contour_i = cv2.contourArea(contour_i)
-                            if (contour_in_contour(contour_i, contour_face) and
-                                area_contour_i >= min_piece_area):
-                                cv2.drawContours(img, contour_i, -1, (150, 150, 150), 3)
+                        for conour_i in contours_i:
+                            epsilon = 0.01 * cv2.arcLength(conour_i, True)
+                            cnt = cv2.approxPolyDP(conour_i, epsilon, True)
 
-                                for i in range(3):
-                                    for j in range(3):
-                                        piece_center = piece_centers[i][j]
-                                        if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
-                                            cube[0][i][j] = color
+                            area_cnt = cv2.contourArea(cnt)
+                            if (contour_in_contour(cnt, contour_face) and
+                                len(cnt) > 3):
+                                if area_cnt >= min_piece_area:
+                                    cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
+
+                                    for i in range(3):
+                                        for j in range(3):
+                                            piece_center = piece_centers[i][j]
+                                            if cv2.pointPolygonTest(cnt, piece_center, False) == 1:
+                                                cube[0][i][j] = color
+                                # The white center piece with blue GAN-logo (brand of the cube)
+                                # has to be detected differently
+                                # elif (color == 'white' and
+                                #       area_cnt > 0):
+                                #     M = cv2.moments(cnt)
+                                #     cnt_center_x = float(M["m10"] / M["m00"])
+                                #     cnt_center_y = float(M["m01"] / M["m00"])
+                                #     cnt_center = (cnt_center_x, cnt_center_y)
+                                #     face_center = piece_centers[1][1]
+                                #     if distance(cnt_center, face_center) <= 5:
+                                #         cube[0][1][1] = 'white'
+
+
+                                  
 
         # cv2.imshow('mask_blue', mask_blue)
         # cv2.imshow('mask_red', mask_red)
