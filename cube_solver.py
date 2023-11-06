@@ -2,6 +2,7 @@ import cv2
 import kociemba
 import numpy as np
 import math
+from math import sin, cos, pi
 import time
 
 # initial_state = input("Enter the initial state of the cube: ")
@@ -24,10 +25,9 @@ def objects_to_ints(object_dict):
 
     return int_dict
 
-width = 640
-height = 360
-center_w = width//2
-center_h = height//2
+IMG_WIDTH = 640
+IMG_HEIGHT = 360
+IMG_CENTER = (IMG_WIDTH//2, IMG_HEIGHT//2)
 instruction_org = (50, 20)
 font = cv2.FONT_HERSHEY_SIMPLEX
 font_scale = 0.6
@@ -40,14 +40,14 @@ low_b = np.array([105, 100, 100])
 high_b = np.array([135, 255, 255])
 low_r = np.array([160, 75, 75])
 high_r = np.array([180, 255, 255])
-low_g = np.array([60, 80, 80])
-high_g = np.array([80, 255, 255])
-low_o = np.array([5, 120, 120])
-high_o = np.array([12, 255, 255])
+low_g = np.array([55, 80, 80])
+high_g = np.array([85, 255, 255])
+low_o = np.array([3, 100, 100])
+high_o = np.array([17, 255, 255])
 low_y = np.array([20, 100, 100])
 high_y = np.array([40, 255, 255])
-low_w = np.array([120, 0, 150])
-high_w = np.array([180, 50, 255])
+low_w = np.array([0, 0, 150])
+high_w = np.array([180, 60, 255])
 
 class Cube:
     def __init__(self):
@@ -140,12 +140,6 @@ def distance(point_a, point_b):
     dist = math.sqrt((x_a - x_b)**2 + (y_a - y_b)**2)
     return dist
 
-def detect_cube(video):
-    for color in COLORS:
-        cmd = detect_face(video, color)
-        if cmd == "quit":
-            return "quit"
-    return "detected"
 
 def detection_completed(face):
     
@@ -161,7 +155,9 @@ def initialize_face():
     for i in range(3):
         for j in range(3):
             face[i][j] = "init"
+
     return face
+
 
     
 def parents_inside_face(contour_array, hierarchy_array, index, contour_face):
@@ -180,7 +176,7 @@ def parents_inside_face(contour_array, hierarchy_array, index, contour_face):
 
 def correct_center_showing(piece_contours_info, contour_face, face_center, correct_color, img):
     area_face = cv2.contourArea(contour_face)
-    min_piece_area = 0.08*area_face
+    min_piece_area = 0.07*area_face
     center_color = "init"
     area_used = area_face
     
@@ -259,139 +255,334 @@ def get_piece_contours_info(masks):
     return piece_contours_info
 
 
+def detect_cube(video):
 
-def detect_face(video, center_color):
-    correct_count = 0
-    center_verified = False
+    for color in COLORS:
+        if (color == "blue" or
+            color == "red" or
+            color == "green" or
+            color == "orange"):
+            center_facing_up = "white"
+        elif color == "white":
+            center_facing_up = "green"
+        else: # if center_color == yellow
+            center_facing_up = "blue"
+
+        instruction_text = f"Show the {color} centered face {center_facing_up} center facing up"
+        while True:
+
+            print("Calling detect_face() from detect_cube()")
+            cmd, face = detect_face(video, instruction_text, color)
+
+
+            if cmd == "quit":
+                return "quit"
+            if (cmd == "completed" and face[1][1] == color):
+                cube.save_face(color, face)
+                cube.print_state()
+                break
+        
+    return "detected"
+
+def initialize_contours():
+    init_contour = np.array([[0, 0], [IMG_WIDTH, 0], [IMG_WIDTH, IMG_HEIGHT], [0, IMG_HEIGHT]])
+    result = [[init_contour, init_contour, init_contour],
+              [init_contour, init_contour, init_contour],
+              [init_contour, init_contour, init_contour]]
+    
+    return result
+
+def initialize_areas():
+    relative_max = 1.0
+    area_array = np.empty([3,3])
+    for i in range(3):
+        for j in range(3):
+            area_array[i][j] = relative_max
+    return area_array
+
+def faces_match(face_a, face_b):
+    for i in range(3):
+        for j in range(3):
+            if face_a[i][j] != face_b[i][j]:
+                return False
+    return True
+def approximately_square(contour, marginal = 10):
+
+    rectangle = cv2.minAreaRect(contour)
+    w, h = rectangle[1]
+
+    if abs(w - h) > marginal:
+        return False
+    
+    box = cv2.boxPoints(rectangle)
+    box = np.intp(box)
+    
+    for point in contour:
+        dist = cv2.pointPolygonTest(box, point, True)
+        if dist > marginal:
+            return False
+
+    return True
+
+def deg_to_rad(a_deg):
+    a_rad = a_deg / 180 * pi
+    return a_rad
+
+def find_face_and_get_centers(img, marginal = 10):
+    # masks = get_masks(img)
+    # mask_final = masks[6]
+    mask_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # Everything but black
+    low = np.array([0, 0, 50])
+    high = np.array([180, 255, 255])
+    mask_final = cv2.inRange(mask_img, low, high)
+    cv2.imshow('mask_final', mask_final)
+
+    contours_final, hierarchy = cv2.findContours(mask_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours_final) > 0:
+        for cnt_of_final_mask in contours_final:
+            area = cv2.contourArea(cnt_of_final_mask)
+
+            if (area < 10000 or
+                area > 40000):
+                continue
+
+            rectangle = cv2.minAreaRect(cnt_of_final_mask)
+            rotation_deg = abs(rectangle[2])
+            rotation_rad = deg_to_rad(rotation_deg)
+            center_point = rectangle[0]
+            if distance(center_point, IMG_CENTER) > 50:
+                continue
+
+            if 30 < rotation_deg < 60:
+                continue
+            
+            box = cv2.boxPoints(rectangle)
+            box = np.intp(box)
+
+            for point_as_array in cnt_of_final_mask:
+                point = (float(point_as_array[0][0]), float(point_as_array[0][1]))
+                dist = cv2.pointPolygonTest(box, point, True)
+                if dist > marginal:
+                    continue
+
+
+            # Getting the right value
+            if 60 <= rotation_deg <= 90:
+                h, w = rectangle[1]
+                if abs(w - h) > marginal:
+                    continue
+                w_step = w // 6
+                h_step = h // 6
+                top_left = box[0]
+                dx_per_w_step = sin(rotation_rad)*w_step
+                dx_per_h_step = cos(rotation_rad)*h_step
+                dy_per_w_step = -cos(rotation_rad)*w_step
+                dy_per_h_step = sin(rotation_rad)*h_step
+                w_me = distance(box[0], box[1])
+                # print("From 60 to 90:")
+                # print(f"w_program: {w}")
+                # print(f"w_me: {w_me}")
+                # h_me = distance(box[1], box[2])
+                # print(f"h_program: {h}")
+                # print(f"h_me: {h_me}")
+                # print()
+            else: # if 0 < rotation_deg <= 30:
+                w, h = rectangle[1]
+                if abs(w - h) > marginal:
+                    continue
+                w_step = w // 6
+                h_step = h // 6
+                top_left = box[1]
+                dx_per_w_step = cos(rotation_rad)*w_step
+                dx_per_h_step = -sin(rotation_rad)*h_step
+                dy_per_w_step = sin(rotation_rad)*w_step
+                dy_per_h_step = cos(rotation_rad)*h_step
+                w_me = distance(box[1], box[2])
+                # print("From 0 to 30:")
+                # print(f"w_program: {w}")
+                # print(f"w_me: {w_me}")
+                # h_me = distance(box[0], box[1])
+                # print(f"h_program: {h}")
+                # print(f"h_me: {h_me}")
+                # print()
+
+            # img = cv2.circle(img, box[0],
+            #                  radius=2, color=(255, 0 , 0), thickness=-1)
+            # img = cv2.circle(img, box[1],
+            #                  radius=2, color=(0, 255, 0), thickness=-1)
+            # img = cv2.circle(img, box[2],
+            #                  radius=2, color=(0, 0, 255), thickness=-1)
+            # img = cv2.circle(img, box[3],
+            #                  radius=2, color=(255, 255, 255), thickness=-1)
+            
+            
+            
+            x_0, y_0 = top_left
+            
+
+            piece_centers = np.empty((3,3), dtype="f,f")
+
+            cv2.drawContours(img, [box], 0, (0, 0, 100), 3)
+
+            for i in range(3):
+                for j in range(3):
+                    piece_center_x = x_0 + (2*j + 1)*dx_per_w_step + (2*i + 1)*dx_per_h_step
+                    piece_center_y = y_0 + (2*j + 1)*dy_per_w_step + (2*i + 1)*dy_per_h_step
+                    piece_centers[i][j] = (piece_center_x, piece_center_y)
+                    piece_center_x = int(piece_center_x)
+                    piece_center_y = int(piece_center_y)
+                    img = cv2.circle(img, (piece_center_x, piece_center_y),
+                                    radius=2, color=(0, 0, 255), thickness=-1)
+
+            return True, box, piece_centers
+    
+    return False, None, None
+
+def detect_face(video, instruction_text, center_color):
+    completed = False
     face = initialize_face()
-
-    if (center_color == "blue" or
-        center_color == "red" or
-        center_color == "green" or
-        center_color == "orange"):
-        center_facing_up = "white"
-    elif center_color == "white":
-        center_facing_up = "green"
-    else: # if center_color == yellow
-        center_facing_up = "blue"
-
-    instruction_text = f"Show the {center_color} centered face {center_facing_up} center facing up"
+    relative_areas = initialize_areas()
     while True:
         is_ok, img = video.read()
 
         if not is_ok:
+            print("Breaking the while-loop in detect_face()")
             break
 
-        img = cv2.resize(img, (width, height))
+        img = cv2.resize(img, (IMG_WIDTH, IMG_HEIGHT))
         img = cv2.flip(img, 1)
-        cv2.putText(img, instruction_text, instruction_org, font, font_scale, font_color,
+        cv2.putText(img, instruction_text, (50,50), font, font_scale, font_color,
                     font_thickness)
+        
+        if not completed:
+            masks = get_masks(img)
+            mask_final = masks[6]
 
-        masks = get_masks(img)
-        mask_final = masks[6]
 
-        contours_face, hierarchy = cv2.findContours(mask_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        if len(contours_face) > 0:
-            for contour_face in contours_face:
+            face_found, contour_face, piece_centers = find_face_and_get_centers(img)
+            if face_found:
+                # cv2.drawContours(img, [contour_face], 0, (0, 0, 100), 3)
                 area_face = cv2.contourArea(contour_face)
-                # Area of a single piece should be 1/9 of the face area, but
-                # the shapes are not detected with perfect accuracy so a little
-                # error marginal is needed here. Hence the minimum acceptable
-                # area for the piece is set lower than it should theoretically be.
                 min_piece_area = 0.08*area_face
-                x, y, w, h = cv2.boundingRect(contour_face)
+                piece_contours_info = get_piece_contours_info(masks)
 
-                center_x = x + w//2
-                center_y = y + h//2
-                center_marginal = 50
-                square_shape_marginal = 10
-                if (10000 <= area_face <= 40000 and
-                   approx_equals(center_x, center_w, center_marginal) and
-                   approx_equals(center_y, center_h, center_marginal) and
-                   approx_equals(w, h, square_shape_marginal)):
 
-                    piece_w = w // 3
-                    piece_h = h // 3
-                    piece_contours_info = get_piece_contours_info(masks)
+                for color in piece_contours_info:
+                    contours_i = piece_contours_info[color][0]
+                    hierarchy_array = piece_contours_info[color][1]
 
-                    piece_centers = np.zeros((3,3,2))
-                    piece_centers = np.empty((3,3), dtype="f,f")
-                    for i in range(3):
-                        for j in range(3):
-                            piece_center_x = x + (j + 0.5)*piece_w
-                            piece_center_y = y + (i + 0.5)*piece_h
-                            piece_centers[i][j] = (piece_center_x, piece_center_y)
+                    for contour_index, contour_i in enumerate(contours_i):
+                        # epsilon = 0.01 * cv2.arcLength(contour_i, True)
+                        # cnt = cv2.approxPolyDP(contour_i, epsilon, True)
 
-                    if not center_verified:
-                        if correct_center_showing(piece_contours_info,
-                            contour_face, piece_centers[1][1],
-                            center_color, img):
-                            correct_count += 1
-                        else:
-                            correct_count = 0
-                        
-                        if correct_count >= 10:
-                            center_verified = True
-                            print(f"center verified: {center_color}")
-                            face[1][1] = center_color
 
-                    if center_verified:
+                        area_cnt = cv2.contourArea(contour_i)
+                        if (contour_in_contour(contour_i, contour_face) and
+                            len(contour_i) > 3):
+                            if area_cnt >= min_piece_area:
+                                
+                                # cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
 
-                        for color in piece_contours_info:
-                            contours_i = piece_contours_info[color][0]
-                            hierarchy_array = piece_contours_info[color][1]
-
-                            
-                            for contour_index, contour_i in enumerate(contours_i):
-                                epsilon = 0.01 * cv2.arcLength(contour_i, True)
-                                cnt = cv2.approxPolyDP(contour_i, epsilon, True)
-
-                                area_cnt = cv2.contourArea(cnt)
-                                if (contour_in_contour(cnt, contour_face) and
-                                    len(cnt) > 3):
-                                    if area_cnt >= min_piece_area:
-                                        
-                                        cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
-
-                                        for i in range(3):
-                                            for j in range(3):
-                                                # The center piece is already detected at this point
+                                for i in range(3):
+                                    for j in range(3):
+                                        # The center piece is already detected at this point
+                                        j_reversed = abs(j - 2)
+                                        piece_center = piece_centers[i][j]
+                                        if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
+                                            
+                                            relative_area = area_cnt / area_face
+                                            previous_used = relative_areas[i][j_reversed]
+                                            if (relative_area <= previous_used and
+                                                not parents_inside_face(contours_i, hierarchy_array,
+                                                                        contour_index, contour_face)):
                                                 if (i == 1 and j == 1):
-                                                    continue
-                                                j_reversed = abs(j - 2)
-                                                piece_center = piece_centers[i][j]
-                                                if cv2.pointPolygonTest(cnt, piece_center, False) == 1:
+                                                    if face[i][j] != color:
+                                                        face = initialize_face()
+                                                        relative_areas = initialize_areas()
+                                                    if color == center_color:
+                                                        face[i][j] = color
+                                                        relative_areas[i][j] = relative_area
+
+                                                    # img_2 = img
+                                                    # cv2.drawContours(img_2, [cnt], 0, (0, 0, 100), 3)
+                                                    # cv2.drawContours(img_2, [contour_face], 0, (100, 0, 0), 3)
+                                                    # cv2.putText(img_2, color, instruction_org, font, font_scale, font_color,
+                                                    #             font_thickness)
+                                                    
+                                                    # title = str(draw_count)
+                                                    # cv2.imshow(title, img_2)
+                                                    # draw_count += 1
+
+                                                elif face[1][1] == center_color:  
                                                     face[i][j_reversed] = color
+                                                    relative_areas[i][j_reversed] = relative_area
+                                                
+                                            
+                                            # previous_cnt_used = contours_used[i][j_reversed]
+                                            # if contour_in_contour(cnt, previous_cnt_used):
+                                            #     face[i][j_reversed] = color
+                                            #     contours_used[i][j_reversed] = cnt
 
-                    if detection_completed(face):
-                        cube.save_face(center_color, face)
-                        return "completed"
-                                  
+                            else: # if area_cnt < min_piece_area
+                                
+                                do_something = 0
+                                # cv2.drawContours(img, [cnt], 0, (100, 0, 0), 3)
 
-        cv2.imshow('mask_blue', masks[0])
-        cv2.imshow('mask_red', masks[1])
-        cv2.imshow('mask_green', masks[2])
-        cv2.imshow('mask_orange', masks[3])
-        cv2.imshow('mask_yellow', masks[4])
-        cv2.imshow('mask_white', masks[5])
-        cv2.imshow('mask_final', mask_final)
+            if detection_completed(face):
+                # if verifying:
+                #     return "completed", face
+                # else: # if not verifying
+                #     cmd, face_verified = detect_face(video, instruction_text, True)
+                #     if faces_match(face, face_verified):
+                #         return "completed", face
+                print()
+                print("face:")
+                print(face)
+                instruction_text = "Detection completed! (c)ontinue/(r)estart?"
+                completed = True
+
+        # cv2.imshow('mask_blue', masks[0])
+        # cv2.imshow('mask_red', masks[1])
+        # cv2.imshow('mask_green', masks[2])
+        # cv2.imshow('mask_orange', masks[3])
+        # cv2.imshow('mask_yellow', masks[4])
+        # cv2.imshow('mask_white', masks[5])
+        # cv2.imshow('mask_final', mask_final)
         cv2.imshow('img', img)
 
         pressed = cv2.waitKey(1)
 
         if pressed == ord('q'):
-            return "quit"
+            return "quit", None
         if pressed == ord(' '):
             cube.print_state()
             print()
             print("face:")
             print(face)
+            
+        if (pressed == ord('c') and 
+            completed):
+            return "completed", face
+        if pressed == ord('r'):
+            return "restart", face
+        
+    print("Reached end of the function detect_face()")
+
+            
+def show_instructions(video, turn):
+
+    return
 
 def solve_cube(video):
+
     print("Hello from solve_cube!")
     cube.print_state()
-    print(cube.get_solution())
+    solution = cube.get_solution()
+    print(solution)
+    for turn in solution:
+        show_instructions(video, turn)
     return
 
 def main():
