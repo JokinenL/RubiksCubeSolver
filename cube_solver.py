@@ -748,7 +748,9 @@ def get_img(video):
     return True, img
 
 def detect_face(video, center_color):
-    already_completed = False
+    detected = False
+    verified = False
+
     face = initialize_face()
     face_to_return = initialize_face()
     relative_areas = initialize_areas()
@@ -760,122 +762,133 @@ def detect_face(video, center_color):
         cv2.putText(img, instruction_text, (50,50), font, font_scale, font_color,
                     font_thickness)
         
-        masks = get_masks(img)
+        if detected == verified:
+        
+            masks = get_masks(img)
 
 
-        face_found, contour_face, piece_centers = find_face_and_get_centers(img)
-        if not face_found:
-            if already_completed:
-                return "completed", face
-        else:
-            # cv2.drawContours(img, [contour_face], 0, (0, 0, 100), 3)
-            area_face = cv2.contourArea(contour_face)
-            min_piece_area = 0.08*area_face
-            piece_contours_info = get_piece_contours_info(masks)
-
-
-            for color in piece_contours_info:
-                contours_i = piece_contours_info[color][0]
-                hierarchy_array = piece_contours_info[color][1]
-
-                for contour_index, contour_i in enumerate(contours_i):
-                    # epsilon = 0.01 * cv2.arcLength(contour_i, True)
-                    # cnt = cv2.approxPolyDP(contour_i, epsilon, True)
-
-
-                    area_cnt = cv2.contourArea(contour_i)
-                    # if color == "red":
-                    #             cv2.drawContours(img, [contour_i], 0, (100, 0, 0), 3)
-                    # if (contour_in_contour(contour_i, contour_face) and
-                    #     len(contour_i) > 3):
-                    if (len(contour_i) > 3 and
-                        area_cnt >= min_piece_area):
-                            
-                            
-                        # cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
-
-                        for i in range(3):
-                            for j in range(3):
-                                # The center piece is already detected at this point
-                                j_reversed = abs(j - 2)
-                                piece_center = piece_centers[i][j]
-                                if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
-                                    
-                                    relative_area = area_cnt / area_face
-                                    previous_used = relative_areas[i][j_reversed]
-                                    if (relative_area <= previous_used and
-                                        not parents_inside_face(contours_i, hierarchy_array,
-                                                                contour_index, contour_face)):
-                                    # if (relative_area <= previous_used):
-                                        if (i == 1 and j == 1):
-                                            if face[i][j] != color:
-                                                face = initialize_face()
-                                                relative_areas = initialize_areas()
-                                                piece_contours_info = reverse_dict(piece_contours_info)
-                                            if color == center_color or already_completed:
-                                                face[i][j] = color
-                                                relative_areas[i][j] = relative_area
-
-                                            # img_2 = img
-                                            # cv2.drawContours(img_2, [cnt], 0, (0, 0, 100), 3)
-                                            # cv2.drawContours(img_2, [contour_face], 0, (100, 0, 0), 3)
-                                            # cv2.putText(img_2, color, instruction_org, font, font_scale, font_color,
-                                            #             font_thickness)
-                                            
-                                            # title = str(draw_count)
-                                            # cv2.imshow(title, img_2)
-                                            # draw_count += 1
-
-                                        elif face[1][1] == center_color or already_completed:  
-                                            face[i][j_reversed] = color
-                                            relative_areas[i][j_reversed] = relative_area
-                                        
-                                    
-                                    # previous_cnt_used = contours_used[i][j_reversed]
-                                    # if contour_in_contour(cnt, previous_cnt_used):
-                                    #     face[i][j_reversed] = color
-                                    #     contours_used[i][j_reversed] = cnt
-
-
-        if detection_completed(face):
-
-            if not already_completed:
-                print()
-                print("face:")
-                print(face)
-                instruction_text = "Detection completed! (c)ontinue/(r)estart?"
-                face_to_return = face.copy()
-                already_completed = True
-            
+            face_found, contour_face, piece_centers = find_face_and_get_centers(img)
+            if not face_found:
+                # if already_completed:
+                #     return "completed", face
+                do_something = 1
+                face = initialize_face()
+                relative_areas = initialize_areas()
             else:
-                if center_color == "white":
-                    draw_arrows(img, "x'", piece_centers)
-                    if face[1][1] == "yellow":
-                        return "completed", face_to_return
-                if center_color == "yellow":
-                    draw_arrows(img, "x", piece_centers)
-                    if face[1][1] == "blue":
-                        return "completed", face_to_return
-                if center_color == "blue":
-                    draw_arrows(img, "y'", piece_centers)
-                    if face[1][1] == "red":
-                        return "completed", face_to_return
-                if center_color == "red":
-                    draw_arrows(img, "x'", piece_centers)
-                    if face[1][1] == "green":
-                        return "completed", face_to_return
-                if center_color == "green":
-                    draw_arrows(img, "x'", piece_centers)
-                    if face[1][1] == "orange":
-                        return "completed", face_to_return
-                if center_color == "orange":
-                    draw_arrows(img, "x", piece_centers)
-                    if face[1][1] == "green":
-                        return "completed", face_to_return
+                # cv2.drawContours(img, [contour_face], 0, (0, 0, 100), 3)
+                area_face = cv2.contourArea(contour_face)
+                min_piece_area = 0.08*area_face
+                piece_contours_info = get_piece_contours_info(masks)
+
+
+                for color in piece_contours_info:
+                    contours_i = piece_contours_info[color][0]
+                    hierarchy_array = piece_contours_info[color][1]
+
+                    for contour_index, contour_i in enumerate(contours_i):
+                        # epsilon = 0.01 * cv2.arcLength(contour_i, True)
+                        # cnt = cv2.approxPolyDP(contour_i, epsilon, True)
+
+
+                        area_cnt = cv2.contourArea(contour_i)
+                        # if color == "red":
+                        #             cv2.drawContours(img, [contour_i], 0, (100, 0, 0), 3)
+                        # if (contour_in_contour(contour_i, contour_face) and
+                        #     len(contour_i) > 3):
+                        if (len(contour_i) > 3 and
+                            area_cnt >= min_piece_area):
+                                
+                                
+                            # cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
+
+                            for i in range(3):
+                                for j in range(3):
+                                    # The center piece is already detected at this point
+                                    j_reversed = abs(j - 2)
+                                    piece_center = piece_centers[i][j]
+                                    if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
+                                        
+                                        relative_area = area_cnt / area_face
+                                        previous_used = relative_areas[i][j_reversed]
+                                        if (relative_area <= previous_used and
+                                            not parents_inside_face(contours_i, hierarchy_array,
+                                                                    contour_index, contour_face)):
+                                        # if (relative_area <= previous_used):
+                                            if (i == 1 and j == 1):
+                                                if face[i][j] != color:
+                                                    face = initialize_face()
+                                                    relative_areas = initialize_areas()
+                                                    piece_contours_info = reverse_dict(piece_contours_info)
+                                                if color == center_color or verified:
+                                                    face[i][j] = color
+                                                    relative_areas[i][j] = relative_area
+
+                                                # img_2 = img
+                                                # cv2.drawContours(img_2, [cnt], 0, (0, 0, 100), 3)
+                                                # cv2.drawContours(img_2, [contour_face], 0, (100, 0, 0), 3)
+                                                # cv2.putText(img_2, color, instruction_org, font, font_scale, font_color,
+                                                #             font_thickness)
+                                                
+                                                # title = str(draw_count)
+                                                # cv2.imshow(title, img_2)
+                                                # draw_count += 1
+
+                                            elif face[1][1] == center_color or verified:  
+                                                face[i][j_reversed] = color
+                                                relative_areas[i][j_reversed] = relative_area
+                                            
+                                        
+                                        # previous_cnt_used = contours_used[i][j_reversed]
+                                        # if contour_in_contour(cnt, previous_cnt_used):
+                                        #     face[i][j_reversed] = color
+                                        #     contours_used[i][j_reversed] = cnt
+
+
+                if detection_completed(face):
+
+                    if not detected:
+                        print()
+                        print("face:")
+                        print(face)
+                        instruction_text = "Detection completed! (c)ontinue/(r)estart?"
+                        
+                        detected = True
+                    
+                    else:
+                        if center_color == "white":
+                            draw_arrows(img, "x'", piece_centers)
+                            instruction_text = get_instruction_text("yellow")
+                            if face[1][1] == "yellow":
+                                return "completed", face_to_return
+                        if center_color == "yellow":
+                            draw_arrows(img, "x", piece_centers)
+                            instruction_text = get_instruction_text("blue")
+                            if face[1][1] == "blue":
+                                return "completed", face_to_return
+                        if center_color == "blue":
+                            draw_arrows(img, "y'", piece_centers)
+                            instruction_text = get_instruction_text("red")
+                            if face[1][1] == "red":
+                                return "completed", face_to_return
+                        if center_color == "red":
+                            draw_arrows(img, "y'", piece_centers)
+                            instruction_text = get_instruction_text("green")
+                            if face[1][1] == "green":
+                                return "completed", face_to_return
+                        if center_color == "green":
+                            draw_arrows(img, "y'", piece_centers)
+                            instruction_text = get_instruction_text("orange")
+                            if face[1][1] == "orange":
+                                return "completed", face_to_return
+                        if center_color == "orange":
+                            draw_arrows(img, "y", piece_centers)
+                            instruction_text = get_instruction_text("green")
+                            if face[1][1] == "green":
+                                return "completed", face_to_return
 
 
         cv2.imshow('mask_blue', masks[0])
-        # cv2.imshow('mask_red', masks[1])
+        cv2.imshow('mask_red', masks[1])
         # cv2.imshow('mask_green', masks[2])
         # cv2.imshow('mask_orange', masks[3])
         # cv2.imshow('mask_yellow', masks[4])
@@ -894,8 +907,9 @@ def detect_face(video, center_color):
             print(face)
             
         if (pressed == ord('c') and 
-            already_completed):
-            return "completed", face
+            detected):
+            face_to_return = face.copy()
+            verified = True
         if pressed == ord('r'):
             return "restart", face
         
