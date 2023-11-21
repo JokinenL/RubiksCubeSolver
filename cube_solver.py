@@ -3,48 +3,13 @@ import kociemba
 import numpy as np
 import math
 from math import sin, cos, pi
-import time
-
-# TODO: tunnistusvaiheen rotaationuolet.
-# 
-# 
-# 
-# 
-#  
-# !
-
-# initial_state = input("Enter the initial state of the cube: ")
-
-# solution = cube.solve(initial_state)
-# print("Solution is:")
-# print(solution)
-
-
-def approx_equals(a, b, marginal):
-    if b - marginal <= a <= b + marginal:
-        return True
-    
-    return False
-
-def objects_to_ints(object_dict):
-    int_dict = {"blue": [0,0], "green": [0,0], "yellow": [0,0],
-                "white": [0,0], "red": [0,0], "orange": [0,0]}
-    for color in int_dict.keys():
-        int_dict['blue'][0] = object_dict['blue'][0]
-
-    return int_dict
 
 IMG_WIDTH = 640
 IMG_HEIGHT = 360
 IMG_CENTER = (IMG_WIDTH//2, IMG_HEIGHT//2)
-instruction_org = (50, 20)
-font = cv2.FONT_HERSHEY_SIMPLEX
-font_scale = 0.6
-font_color = (255, 0, 0)
-font_thickness = 1
-
 COLORS = ["white", "yellow", "blue", "red", "green", "orange"]
 
+# Limits for the six colors of the cube. Note that these are in HSV-format.
 low_b = np.array([105, 100, 100])
 high_b = np.array([135, 255, 255])
 low_r = np.array([160, 75, 75])
@@ -57,6 +22,17 @@ low_y = np.array([20, 100, 100])
 high_y = np.array([40, 255, 255])
 low_w = np.array([0, 0, 150])
 high_w = np.array([180, 60, 255])
+
+# The class Cube represents the Rubik's Cube itself. It has six faces which are saved
+# in an attribute called state which represents the current state i.e. scramble of the cube.
+# Faces of the cube are usually referenced either via color of the center piece (e.g. blue face)
+# via the position of the face relative to the user (e.g. front face). In this program faces are
+# considered to match the relative positions as follows: white = up; blue = front; orange = right;
+# green = back; red = left; yellow = down. This should explain the use of letters U, F, R, B, L 
+# and D in the program. The logic of the syntax of turns goes like this: U means turning the
+# up-pointing face clockwise and U' (U-prime) means turning it counter clockwise. Letters x and y
+# among the turns stand for rotating the whole cube around the x-axis or y-axis. The actual
+# solution is taken from the Kociemba librarys 'solve' function.
 
 class Cube:
     def __init__(self):
@@ -108,9 +84,7 @@ class Cube:
                 for j in range(3):
                     state_str += self.color_to_letter(face[i][j])
 
-        print("state_str:")
-        print(state_str)
-        print()
+
         solution = kociemba.solve(state_str)
 
         return solution
@@ -410,24 +384,7 @@ class Cube:
 
 cube = Cube()
 
-
-
-def my_print(x, str):
-    print()
-    print(str,end=": ")
-    print(x)
-    return
-
-# def point_in_contour(point, contour):
-#     x_contour, y_contour, w_contour, h_contour = cv2.boundingRect(contour)
-#     x_point = point[0]
-#     y_point = point[1]
-#     if (x_contour <= x_point <= x_contour + w_contour and
-#         y_contour <= y_point <= y_contour + h_contour):
-#         return True
-#     else:
-#         return False
-
+# Returns the boolean value of contour_a being inside contour_b.
 def contour_in_contour(contour_a, contour_b):
     for point_as_array in contour_a:
         point = (float(point_as_array[0][0]), float(point_as_array[0][1]))
@@ -441,14 +398,13 @@ def distance(point_a, point_b):
     dist = math.sqrt((x_a - x_b)**2 + (y_a - y_b)**2)
     return dist
 
-
+# The functionn is used to check if every piece of a given face is being detected after
+# initalization.
 def detection_completed(face):
-    
     for i in range(3):
         for j in range(3):
             if face[i][j] == "init":
                 return False
-    
     return True
 
 def initialize_face():
@@ -456,11 +412,17 @@ def initialize_face():
     for i in range(3):
         for j in range(3):
             face[i][j] = "init"
-
     return face
 
 
-    
+# The function is used to check if a given contour has parents i.e. surrounding contours
+# of the same color inside the face. This is useful in a tricky situation where the center piece
+# is for example blue and all the other pieces are of the face are for example red. That creates a
+# situation where the program is easily tricked to conclude that the center piece is also red since
+# it is inside the (inner) red contour which is approximately of a size of the center piece. This
+# is a unique situation which can be regognized by checking who is the parent of an inner red
+# circle. If it has a parent of a size of the face it is concluded that the center piece is
+# of a different color (in this case blue).
 def parents_inside_face(contour_array, hierarchy_array, index, contour_face):
     hierarchy_i = hierarchy_array[0][index]
     index_of_parent = hierarchy_i[3]
@@ -475,7 +437,8 @@ def parents_inside_face(contour_array, hierarchy_array, index, contour_face):
     return False
 
                 
-
+# The funtion creates and returns the masks for all the six colors of the cube. These are
+# used to regognize the piece colors.
 def get_masks(img):
     mask_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -485,6 +448,11 @@ def get_masks(img):
     mask_yellow = cv2.inRange(mask_img, low_y, high_y)
     mask_white = cv2.inRange(mask_img, low_w, high_w)
 
+    # The color limits (global variables set above) may vary with the lighting of the 
+    # environment. It is possible that sometimes the best hue values go beyond the zero
+    # (or beyond the 180 degrees which is the same thing). In taht case the red mask has
+    # to be created of two separate masks, one from "lower" limit to 180 degrees and one from
+    # zero (180) degrees to "higher" limit.
     if high_r[0] > 180:
         low_r_1 = low_r
         low_r_2 = np.array([0, low_r[1], low_r[2]])
@@ -497,17 +465,13 @@ def get_masks(img):
     else:
         mask_red = cv2.inRange(mask_img, low_r, high_r)
 
-    mask_final = cv2.bitwise_or(mask_blue, mask_red)
-    mask_final = cv2.bitwise_or(mask_green, mask_final)
-    mask_final = cv2.bitwise_or(mask_orange, mask_final)
-    mask_final = cv2.bitwise_or(mask_yellow, mask_final)
-    mask_final = cv2.bitwise_or(mask_white, mask_final)
 
-    return mask_blue, mask_red, mask_green, mask_orange, mask_yellow, mask_white, mask_final
+    return mask_blue, mask_red, mask_green, mask_orange, mask_yellow, mask_white
 
+# The function creates a data structure which can be used to iterate through all the contours of
+# given color and the hiererchy vectors of each contour (which are used when finding contours
+# parents).
 def get_piece_contours_info(masks):
-    epsilon = 5
-
     contours_blue, hierarchy_blue = cv2.findContours(masks[0], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours_red, hierarchy_red = cv2.findContours(masks[1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours_green, hierarchy_green = cv2.findContours(masks[2], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -522,6 +486,11 @@ def get_piece_contours_info(masks):
                         'white': [contours_white, hierarchy_white]}
     return piece_contours_info
 
+# The function creates and returns the instruction text based on a center color that needs to
+# be pointed to the camera. The logic here follows the rules represented in the comment text of
+# the class Cube: white => up, blue => front, etc. It is crucial that the right face is pointing
+# up when a given face is pointing to the camera, otherwise the interpretation of the face
+# showing is not unambiguous.
 def get_instruction_text(color):
     if (color == "blue" or
         color == "red" or
@@ -532,30 +501,39 @@ def get_instruction_text(color):
         center_facing_up = "green"
     else: # if center_color == yellow
         center_facing_up = "blue"
+    text = f"Show the {color} centered face {center_facing_up} center facing up"
+    return text
 
-    instruction_text = f"Show the {color} centered face {center_facing_up} center facing up"
+# The function draws the instruction text on the picture with white font on a black background.
+def draw_instruction_text(img, text):
 
-    return instruction_text
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    font_thickness = 1
+    top_left_x = 10
+    top_left_y = 10
+    bg_color = (0, 0, 0)
+    text_color = (255, 255, 255)
+    size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
+    w, h = size
+    text_bottom_left = point_type_converter((top_left_x, top_left_y + 1.2*h), float_to_int=True)
+    rect_top_left = (top_left_x, top_left_y)
+    rect_bottom_right = point_type_converter((top_left_x + w, top_left_y + 1.5*h), float_to_int=True)
 
+    cv2.rectangle(img, rect_top_left, rect_bottom_right, bg_color, -1)
+    cv2.putText(img, text, text_bottom_left, font, font_scale, text_color, font_thickness)
+
+    return
+
+# The function iterates through all center pieces detecting the faces around them using
+# the function detect_face() which is actually the function where pretty mutch everthing
+# happens considering the computer vision.
 def detect_cube(video):
 
-    # for color in COLORS:
-    #     face = initialize_face()
-    #     for i in range(3):
-    #         for j in range(3):
-    #             face[i][j] = color
-    #     cube.save_face(color, face)
-    
-    # cube.right_turn(prime = False)
-    # cube.up_turn(prime = False)
-    # cube.left_turn(prime = True)
-    # cube.front_turn(prime = True)
-    # return "detected"
     for color in COLORS:
 
         while True:
 
-            print("Calling detect_face() from detect_cube()")
             cmd, face = detect_face(video, color)
 
 
@@ -567,20 +545,14 @@ def detect_cube(video):
                 continue
             if cmd == "completed":
                 cube.save_face(color, face)
-                cube.print_state()
                 break
         
     return "detected"
 
-
-def initialize_contours():
-    init_contour = np.array([[0, 0], [IMG_WIDTH, 0], [IMG_WIDTH, IMG_HEIGHT], [0, IMG_HEIGHT]])
-    result = [[init_contour, init_contour, init_contour],
-              [init_contour, init_contour, init_contour],
-              [init_contour, init_contour, init_contour]]
-    
-    return result
-
+# The function is called from detect_face() to initialize the relative areas of the contours 
+# used in detection. The areas are relative to the area of the whole face. 1.0 i.e. 100 % is
+# a good initalization value since during detection the smallest relative area is being looked
+# for and every time a smaller value is found the old value is replaced by it.
 def initialize_areas():
     relative_max = 1.0
     area_array = np.empty([3,3])
@@ -589,29 +561,14 @@ def initialize_areas():
             area_array[i][j] = relative_max
     return area_array
 
+# The function returns the boolean value of face_a and face_b being identical.
 def faces_match(face_a, face_b):
     for i in range(3):
         for j in range(3):
             if face_a[i][j] != face_b[i][j]:
                 return False
     return True
-def approximately_square(contour, marginal = 10):
 
-    rectangle = cv2.minAreaRect(contour)
-    w, h = rectangle[1]
-
-    if abs(w - h) > marginal:
-        return False
-    
-    box = cv2.boxPoints(rectangle)
-    box = np.intp(box)
-    
-    for point in contour:
-        dist = cv2.pointPolygonTest(box, point, True)
-        if dist > marginal:
-            return False
-
-    return True
 
 def reverse_dict(og_dict):
     list_of_items = list(og_dict.items())
@@ -623,15 +580,18 @@ def deg_to_rad(a_deg):
     a_rad = a_deg / 180 * pi
     return a_rad
 
+# The function is supposed to find a cube from the image and compute the cordinates of each
+# piece center. The funtion returns three values: 
+# 1) boolean of whether a face is found
+# 2) contour of the face
+# 3) numpy array of piece center points
+
 def find_face_and_get_centers(img, marginal = 10):
-    # masks = get_masks(img)
-    # mask_final = masks[6]
     mask_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    # Everything but black
+    # Everything but black. Black background is necessary for program to work properly.
     low = np.array([0, 0, 100])
     high = np.array([180, 255, 255])
     mask_final = cv2.inRange(mask_img, low, high)
-    # cv2.imshow('mask_final', mask_final)
 
     contours_final, hierarchy = cv2.findContours(mask_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -649,21 +609,23 @@ def find_face_and_get_centers(img, marginal = 10):
             center_point = rectangle[0]
             if distance(center_point, IMG_CENTER) > 50:
                 continue
-
+            # Skipping cases where the cube is rotated too mutch. It has to be unambiguous
+            # which side is facing up.
             if 30 < rotation_deg < 60:
                 continue
             
             box = cv2.boxPoints(rectangle)
             box = np.intp(box)
 
+            # Making sure that the object recognized is aprroximately square
             for point_as_array in cnt_of_final_mask:
                 point = (float(point_as_array[0][0]), float(point_as_array[0][1]))
                 dist = cv2.pointPolygonTest(box, point, True)
                 if dist > marginal:
                     continue
 
-
-            # Getting the right value
+            # Computing the transition in x and y axis when moving in the set of cordinates
+            # of the rotated cube.
             if 60 <= rotation_deg <= 90:
                 h, w = rectangle[1]
                 if abs(w - h) > marginal:
@@ -675,14 +637,7 @@ def find_face_and_get_centers(img, marginal = 10):
                 dx_per_h_step = cos(rotation_rad)*h_step
                 dy_per_w_step = -cos(rotation_rad)*w_step
                 dy_per_h_step = sin(rotation_rad)*h_step
-                w_me = distance(box[0], box[1])
-                # print("From 60 to 90:")
-                # print(f"w_program: {w}")
-                # print(f"w_me: {w_me}")
-                # h_me = distance(box[1], box[2])
-                # print(f"h_program: {h}")
-                # print(f"h_me: {h_me}")
-                # print()
+
             else: # if 0 < rotation_deg <= 30:
                 w, h = rectangle[1]
                 if abs(w - h) > marginal:
@@ -694,31 +649,13 @@ def find_face_and_get_centers(img, marginal = 10):
                 dx_per_h_step = -sin(rotation_rad)*h_step
                 dy_per_w_step = sin(rotation_rad)*w_step
                 dy_per_h_step = cos(rotation_rad)*h_step
-                w_me = distance(box[1], box[2])
-                # print("From 0 to 30:")
-                # print(f"w_program: {w}")
-                # print(f"w_me: {w_me}")
-                # h_me = distance(box[0], box[1])
-                # print(f"h_program: {h}")
-                # print(f"h_me: {h_me}")
-                # print()
-
-            # img = cv2.circle(img, box[0],
-            #                  radius=2, color=(255, 0 , 0), thickness=-1)
-            # img = cv2.circle(img, box[1],
-            #                  radius=2, color=(0, 255, 0), thickness=-1)
-            # img = cv2.circle(img, box[2],
-            #                  radius=2, color=(0, 0, 255), thickness=-1)
-            # img = cv2.circle(img, box[3],
-            #                  radius=2, color=(255, 255, 255), thickness=-1)
-            
-            
-            
+ 
             x_0, y_0 = top_left
-            
 
             piece_centers = np.empty((3,3), dtype="f,f")
 
+            # Drawing the contour of the detected face so user can see that
+            # the face is detected.
             cv2.drawContours(img, [box], 0, (0, 0, 100), 3)
 
             for i in range(3):
@@ -735,6 +672,7 @@ def find_face_and_get_centers(img, marginal = 10):
     
     return False, None, None
 
+# The function forms the image to the desired form from the video output from webcam.
 def get_img(video):
     is_ok, img = video.read()
 
@@ -747,7 +685,29 @@ def get_img(video):
 
     return True, img
 
+# The function is called separately for each of the six faces (defined by center colors)
+# of the cube. As inputs, it takes the video image from the webcam and the color of the
+# center of the face that should be detected. The first return value contains the information
+# about whether the detection was successful, or if it was interrupted due to error or users
+# command 'q'. The second return value is 3 x 3 numpy array representing the detected face.
+# from the keyboard.
+
+# The funtion prints the detected face as it shows on the screen. Note that the actual face
+# being saved to the Cube-object is as it shows in the real world (not mirrored).
+def print_mirrored_face(og_face):
+    mirrored_face = initialize_face()
+    for i in range(3):
+        for j in range(3):
+            j_reversed = abs(j - 2)
+            mirrored_face[i][j] = og_face[i][j_reversed]
+    print()
+    print("face (mirrored as on the screen):")
+    print(mirrored_face)
+
 def detect_face(video, center_color):
+    # Detected means that the function has come up with some detection of the face. Verified
+    # means that hte user has verified that the detection was right and the face can be saved to
+    # the Cube-object.
     detected = False
     verified = False
 
@@ -759,23 +719,24 @@ def detect_face(video, center_color):
         success, img = get_img(video)
         if not success:
             return "failed", None
-        cv2.putText(img, instruction_text, (50,50), font, font_scale, font_color,
-                    font_thickness)
+        draw_instruction_text(img, instruction_text)
         
+        # When the face is detected but has not yet been verified, only thing the function does
+        # is to wait for user to either verify it or restart the detection with keyboard commands.
         if detected == verified:
         
             masks = get_masks(img)
 
 
             face_found, contour_face, piece_centers = find_face_and_get_centers(img)
+
+            # This usually means that theres some kind of movement with the cube (turning or
+            # rotating) which means it is time to initialize the detection process in order
+            # to detect pieces of the new face showing.
             if not face_found:
-                # if already_completed:
-                #     return "completed", face
-                do_something = 1
                 face = initialize_face()
                 relative_areas = initialize_areas()
             else:
-                # cv2.drawContours(img, [contour_face], 0, (0, 0, 100), 3)
                 area_face = cv2.contourArea(contour_face)
                 min_piece_area = 0.08*area_face
                 piece_contours_info = get_piece_contours_info(masks)
@@ -786,24 +747,19 @@ def detect_face(video, center_color):
                     hierarchy_array = piece_contours_info[color][1]
 
                     for contour_index, contour_i in enumerate(contours_i):
-                        # epsilon = 0.01 * cv2.arcLength(contour_i, True)
-                        # cnt = cv2.approxPolyDP(contour_i, epsilon, True)
-
-
                         area_cnt = cv2.contourArea(contour_i)
-                        # if color == "red":
-                        #             cv2.drawContours(img, [contour_i], 0, (100, 0, 0), 3)
-                        # if (contour_in_contour(contour_i, contour_face) and
-                        #     len(contour_i) > 3):
+                        # Any contour outlining pieces inside the face should have
+                        # more than three corners. Contours smaller than computed minimum
+                        # area for a single piece are also ignored as noise.
                         if (len(contour_i) > 3 and
                             area_cnt >= min_piece_area):
-                                
-                                
-                            # cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
+
 
                             for i in range(3):
                                 for j in range(3):
-                                    # The center piece is already detected at this point
+                                    # Since the image is mirrored but the Cube-object is formed
+                                    # as it is in real world, both the original value and the
+                                    # reversed value of the column index j is needed.
                                     j_reversed = abs(j - 2)
                                     piece_center = piece_centers[i][j]
                                     if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
@@ -813,8 +769,17 @@ def detect_face(video, center_color):
                                         if (relative_area <= previous_used and
                                             not parents_inside_face(contours_i, hierarchy_array,
                                                                     contour_index, contour_face)):
-                                        # if (relative_area <= previous_used):
+
                                             if (i == 1 and j == 1):
+                                                # If the center color changes it is likely
+                                                # that the cube has been rotated so the face should
+                                                # be initialized in order to erase the values refering
+                                                # to the previous face. Colors are saved to the face only
+                                                # if the correct face is showing (detected center color
+                                                # matches the desired one). Exeption is, if the desired face
+                                                # has already been detected and verified. Then any 
+                                                # face showing is detected in order to draw instruction
+                                                # arrows for the user so he knows where to rotate.
                                                 if face[i][j] != color:
                                                     face = initialize_face()
                                                     relative_areas = initialize_areas()
@@ -823,35 +788,19 @@ def detect_face(video, center_color):
                                                     face[i][j] = color
                                                     relative_areas[i][j] = relative_area
 
-                                                # img_2 = img
-                                                # cv2.drawContours(img_2, [cnt], 0, (0, 0, 100), 3)
-                                                # cv2.drawContours(img_2, [contour_face], 0, (100, 0, 0), 3)
-                                                # cv2.putText(img_2, color, instruction_org, font, font_scale, font_color,
-                                                #             font_thickness)
-                                                
-                                                # title = str(draw_count)
-                                                # cv2.imshow(title, img_2)
-                                                # draw_count += 1
 
                                             elif face[1][1] == center_color or verified:  
                                                 face[i][j_reversed] = color
                                                 relative_areas[i][j_reversed] = relative_area
                                             
-                                        
-                                        # previous_cnt_used = contours_used[i][j_reversed]
-                                        # if contour_in_contour(cnt, previous_cnt_used):
-                                        #     face[i][j_reversed] = color
-                                        #     contours_used[i][j_reversed] = cnt
+
 
 
                 if detection_completed(face):
 
                     if not detected:
-                        print()
-                        print("face:")
-                        print(face)
-                        instruction_text = "Detection completed! (c)ontinue/(r)estart?"
-                        
+                        print_mirrored_face(face)
+                        instruction_text = "Correctly detected? (See the output!) y/n?"
                         detected = True
                     
                     else:
@@ -887,13 +836,16 @@ def detect_face(video, center_color):
                                 return "completed", face_to_return
 
 
-        cv2.imshow('mask_blue', masks[0])
-        cv2.imshow('mask_red', masks[1])
+        # Uncomment these to check if the color limits set in the beggining
+        # are suitable for your environment.
+
+        # cv2.imshow('mask_blue', masks[0])
+        # cv2.imshow('mask_red', masks[1])
         # cv2.imshow('mask_green', masks[2])
         # cv2.imshow('mask_orange', masks[3])
         # cv2.imshow('mask_yellow', masks[4])
         # cv2.imshow('mask_white', masks[5])
-        # cv2.imshow('mask_final', mask_final)
+
         cv2.imshow('img', img)
 
         pressed = cv2.waitKey(1)
@@ -906,14 +858,15 @@ def detect_face(video, center_color):
             print("face:")
             print(face)
             
-        if (pressed == ord('c') and 
+        if (pressed == ord('y') and 
             detected):
             face_to_return = face.copy()
             verified = True
-        if pressed == ord('r'):
+        if pressed == ord('n'):
             return "restart", face
         
-
+# Some funtions require values of the x and y cordinates to be floats, some functions
+# require them to be ints. This funktion is used to convert them.
 def point_type_converter(point, int_to_float = False, float_to_int = False):
     if ((int_to_float == True and float_to_int == True) or
         (int_to_float == False and float_to_int == False)):
@@ -930,9 +883,8 @@ def point_type_converter(point, int_to_float = False, float_to_int = False):
     return point
 
 
-
+# The function draws guiding arrows to the image so user knows where to rotate or turn.
 def draw_arrows(img, turn, piece_centers):
-    print("Hello from draw arrows")
 
     top_left = point_type_converter(piece_centers[0][0], float_to_int=True)
     top_mid = point_type_converter(piece_centers[0][1], float_to_int=True)
@@ -984,16 +936,22 @@ def draw_arrows(img, turn, piece_centers):
 
     return
 
+# The function is used to supervise and guide the user to make correct turns and rotations
+# with the cube. It follows the structure and logic of the function detect face: check the
+# comments from there to understand the main structure.
 def make_turn(video, turn, previous_center_color, last_turn):
     solved = False
     letter = turn[0]
+    # To simplify things, user is always required to show either red or green centered face
+    # of the cube during the solve. All the possible moves are easy to execute with either of
+    # the cube positions.
     if letter == 'U' or letter == 'D':
         valid_face_centers = ["green", "red"]
     elif letter == 'R' or letter == 'L':
         valid_face_centers = ["green"]
     else: # if letter == 'F' or 'B':
         valid_face_centers = ["red"]
-    
+    # Getting rid of unnecessary rotations
     if valid_face_centers.count(previous_center_color) > 0:
         center_color = previous_center_color
     else:
@@ -1010,7 +968,6 @@ def make_turn(video, turn, previous_center_color, last_turn):
     cube.call_turn(turn)
     face_post_turn = cube.get_face(center_color)
 
-    completed = False
     face_showing = initialize_face()
     relative_areas = initialize_areas()
     instruction_text = get_instruction_text(center_color)
@@ -1019,8 +976,7 @@ def make_turn(video, turn, previous_center_color, last_turn):
         success, img = get_img(video)
         if not success:
             return "failed", None
-        cv2.putText(img, instruction_text, (50,50), font, font_scale, font_color,
-                    font_thickness)
+        draw_instruction_text(img, instruction_text)
         
         if not solved:
             masks = get_masks(img)
@@ -1031,7 +987,6 @@ def make_turn(video, turn, previous_center_color, last_turn):
                 face_showing = initialize_face()
                 relative_areas = initialize_areas()
             else:
-                # cv2.drawContours(img, [contour_face], 0, (0, 0, 100), 3)
                 area_face = cv2.contourArea(contour_face)
                 min_piece_area = 0.08*area_face
                 piece_contours_info = get_piece_contours_info(masks)
@@ -1042,24 +997,13 @@ def make_turn(video, turn, previous_center_color, last_turn):
                     hierarchy_array = piece_contours_info[color][1]
 
                     for contour_index, contour_i in enumerate(contours_i):
-                        # epsilon = 0.01 * cv2.arcLength(contour_i, True)
-                        # cnt = cv2.approxPolyDP(contour_i, epsilon, True)
-
-
                         area_cnt = cv2.contourArea(contour_i)
-                        # if color == "red":
-                        #             cv2.drawContours(img, [contour_i], 0, (100, 0, 0), 3)
-                        # if (contour_in_contour(contour_i, contour_face) and
-                        #     len(contour_i) > 3):
+
                         if (len(contour_i) > 3 and
                             area_cnt >= min_piece_area):
-                                
-                                
-                            # cv2.drawContours(img, [cnt], 0, (0, 0, 100), 3)
 
                             for i in range(3):
                                 for j in range(3):
-                                    # The center piece is already detected at this point
                                     j_reversed = abs(j - 2)
                                     piece_center = piece_centers[i][j]
                                     if cv2.pointPolygonTest(contour_i, piece_center, False) == 1:
@@ -1069,7 +1013,6 @@ def make_turn(video, turn, previous_center_color, last_turn):
                                         if (relative_area <= previous_used and
                                             not parents_inside_face(contours_i, hierarchy_array,
                                                                     contour_index, contour_face)):
-                                        # if (relative_area <= previous_used):
                                             if (i == 1 and j == 1):
                                                 if face_showing[i][j] != color:
                                                     face_showing = initialize_face()
@@ -1086,17 +1029,10 @@ def make_turn(video, turn, previous_center_color, last_turn):
 
                 if detection_completed(face_showing):
 
-                    # print()
-                    # print("face:")
-                    # print(face)
-                    # instruction_text = "Detection completed! (c)ontinue/(r)estart?"
-                    # completed = True
-
                     if faces_match(face_showing, face_pre_turn):
                         draw_arrows(img, turn, piece_centers)
 
                     elif faces_match(face_showing, face_post_turn):
-                        print("Turn complited")
                         if not last_turn:
                             return "completed", center_color
                         else:
@@ -1110,13 +1046,6 @@ def make_turn(video, turn, previous_center_color, last_turn):
         if solved:
             instruction_text = "Cube solved! Press 'q' to close the window."
 
-        # cv2.imshow('mask_blue', masks[0])
-        # cv2.imshow('mask_red', masks[1])
-        # cv2.imshow('mask_green', masks[2])
-        # cv2.imshow('mask_orange', masks[3])
-        # cv2.imshow('mask_yellow', masks[4])
-        # cv2.imshow('mask_white', masks[5])
-        # cv2.imshow('mask_final', mask_final)
         cv2.imshow('img', img)
 
         pressed = cv2.waitKey(1)
@@ -1124,7 +1053,6 @@ def make_turn(video, turn, previous_center_color, last_turn):
         if pressed == ord('q'):
             return "quit", None
         if pressed == ord(' '):
-            # cube.print_state()
             print()
             print("face_showing:")
             print(face_showing)
@@ -1135,26 +1063,16 @@ def make_turn(video, turn, previous_center_color, last_turn):
             print("green_pre_turn:")
             print(green_pre_turn)
             
-        # if (pressed == ord('c') and 
-        #     completed):
-        #     return "completed", face_showing
-        # if pressed == ord('r'):
-        #     return "restart", face_showing
+
         
-    
+# The solution taken from Kocimba's solve() function is a string where double moves are
+# marked so that "U2" stands for "U U". Here the solution is saved in a list of single letters
+# where only addition after the letter can be the "'" sign which stands for going counter
+# clockwise.
 def reform_solution(solution_str):
-    # rotated = False
     solution_list = solution_str.split()
     result = []
     for turn in solution_list:
-        # if ((turn[0] == "F" or turn[0] == "B") and
-        #     not rotated):
-        #     result.append("y")
-        #     rotated = True
-        # if ((turn[0] == "R" or turn[0] == "L") and
-        #     rotated):
-        #     result.append("y'")
-        #     rotated = False
 
         if len(turn) > 1 and turn[1] == "2":
             result.append(turn[0])
@@ -1163,20 +1081,21 @@ def reform_solution(solution_str):
             result.append(turn)
     return result
 
+# The function is called after the detection is done. It gets the solution for the given scramble
+# from Kociemba's solve() function and iterates through every turn in the solution calling make_turn()
+# function to execute the turn.
 def solve_cube(video):
 
-    print("Hello from solve_cube!")
-    cube.print_state()
+    
     solution_str = cube.get_solution()
     solution = reform_solution(solution_str)
-    print(f"solution: {solution}")
+
     previous_center_color = "none"
     last_turn = False
 
     for i, turn in enumerate(solution):
         if i == len(solution) - 1:
             last_turn = True
-        print(f"calling make_turn() from solve_cube() with turn {turn}")
         cmd, previous_center_color = make_turn(video, turn, previous_center_color, last_turn)
         if cmd == "quit":
             return "quit"
