@@ -504,14 +504,14 @@ def get_instruction_text(color):
     text = f"Show the {color} centered face {center_facing_up} center facing up"
     return text
 
-# The function draws the instruction text on the picture with white font on a black background.
-def draw_instruction_text(img, text):
+# The function draws needed instruction texts on the image with white font on a black background.
+def draw_text(img, text, origin):
 
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.6
     font_thickness = 1
-    top_left_x = 10
-    top_left_y = 10
+    top_left_x = origin[0]
+    top_left_y = origin[1]
     bg_color = (0, 0, 0)
     text_color = (255, 255, 255)
     size, _ = cv2.getTextSize(text, font, font_scale, font_thickness)
@@ -710,6 +710,7 @@ def detect_face(video, center_color):
     # the Cube-object.
     detected = False
     verified = False
+    gray_face = initialize_face()
 
     face = initialize_face()
     face_to_return = initialize_face()
@@ -719,7 +720,7 @@ def detect_face(video, center_color):
         success, img = get_img(video)
         if not success:
             return "failed", None
-        draw_instruction_text(img, instruction_text)
+        draw_text(img, instruction_text, origin = (10, 10))
         
         # When the face is detected but has not yet been verified, only thing the function does
         # is to wait for user to either verify it or restart the detection with keyboard commands.
@@ -796,44 +797,49 @@ def detect_face(video, center_color):
 
 
 
-                if detection_completed(face):
+            if detection_completed(face) and not detected:
 
-                    if not detected:
-                        print_mirrored_face(face)
-                        instruction_text = "Correctly detected? (See the output!) y/n?"
-                        detected = True
+                print_mirrored_face(face)
+                instruction_text = "Correctly detected? y/n?"
+                detected = True
                     
-                    else:
-                        if center_color == "white":
-                            draw_arrows(img, "x'", piece_centers)
-                            instruction_text = get_instruction_text("yellow")
-                            if face[1][1] == "yellow":
-                                return "completed", face_to_return
-                        if center_color == "yellow":
-                            draw_arrows(img, "x", piece_centers)
-                            instruction_text = get_instruction_text("blue")
-                            if face[1][1] == "blue":
-                                return "completed", face_to_return
-                        if center_color == "blue":
-                            draw_arrows(img, "y'", piece_centers)
-                            instruction_text = get_instruction_text("red")
-                            if face[1][1] == "red":
-                                return "completed", face_to_return
-                        if center_color == "red":
-                            draw_arrows(img, "y'", piece_centers)
-                            instruction_text = get_instruction_text("green")
-                            if face[1][1] == "green":
-                                return "completed", face_to_return
-                        if center_color == "green":
-                            draw_arrows(img, "y'", piece_centers)
-                            instruction_text = get_instruction_text("orange")
-                            if face[1][1] == "orange":
-                                return "completed", face_to_return
-                        if center_color == "orange":
-                            draw_arrows(img, "y", piece_centers)
-                            instruction_text = get_instruction_text("green")
-                            if face[1][1] == "green":
-                                return "completed", face_to_return
+            if verified:
+                if center_color == "white":
+                    instruction_text = get_instruction_text("yellow")
+                    if detection_completed(face):
+                        draw_arrows(img, "x'", piece_centers)
+                        if face[1][1] == "yellow":
+                            return "completed", face_to_return
+                if center_color == "yellow":
+                    instruction_text = get_instruction_text("blue")
+                    if detection_completed(face):
+                        draw_arrows(img, "x", piece_centers)
+                        if face[1][1] == "blue":
+                            return "completed", face_to_return
+                if center_color == "blue":
+                    instruction_text = get_instruction_text("red")
+                    if detection_completed(face):
+                        draw_arrows(img, "y'", piece_centers)
+                        if face[1][1] == "red":
+                            return "completed", face_to_return
+                if center_color == "red":
+                    instruction_text = get_instruction_text("green")
+                    if detection_completed(face):
+                        draw_arrows(img, "y'", piece_centers)
+                        if face[1][1] == "green":
+                            return "completed", face_to_return
+                if center_color == "green":
+                    instruction_text = get_instruction_text("orange")
+                    if detection_completed(face):
+                        draw_arrows(img, "y'", piece_centers)
+                        if face[1][1] == "orange":
+                            return "completed", face_to_return
+                if center_color == "orange":
+                    instruction_text = get_instruction_text("green")
+                    if detection_completed(face):
+                        draw_arrows(img, "y", piece_centers)
+                        if face[1][1] == "green":
+                            return "completed", face_to_return
 
 
         # Uncomment these to check if the color limits set in the beggining
@@ -845,6 +851,10 @@ def detect_face(video, center_color):
         # cv2.imshow('mask_orange', masks[3])
         # cv2.imshow('mask_yellow', masks[4])
         # cv2.imshow('mask_white', masks[5])
+        if not verified:
+            draw_face(img, face)
+        else:
+            draw_face(img, gray_face)
 
         cv2.imshow('img', img)
 
@@ -936,6 +946,49 @@ def draw_arrows(img, turn, piece_centers):
 
     return
 
+# The function draws the face (as it is detected during the function detect_face()) on the screen.
+def draw_face(img, face):
+    colors_bgr = {"red": (0, 0, 255), "blue": (255, 0, 0), "green": (0, 255, 0),
+              "orange": (0, 123, 255), "yellow": (0, 255, 255), "white": (255, 255, 255),
+              "gray": (90, 90, 90), "black": (0, 0, 0)}
+    
+    origin_face = (500, 40)
+    piece_width = 30
+    piece_height = 30
+
+    for i in range(3):
+        for j in range(3):
+            j_reversed = abs(j - 2)
+            origin_piece_x = origin_face[0] + j*piece_width
+            origin_piece_y = origin_face[1] + i*piece_height
+            origin_piece = (origin_piece_x, origin_piece_y)
+            end_point_piece_x = origin_piece_x + piece_width
+            end_point_piece_y = origin_piece_y + piece_height
+            end_point_piece = (end_point_piece_x, end_point_piece_y)
+
+            color_name = face[i][j_reversed]
+            if color_name == "init":
+                color_name = "gray"
+            color_value = colors_bgr[color_name]
+            
+            cv2.rectangle(img, origin_piece, end_point_piece, color_value, -1)
+
+    for i in range(3):
+
+        for j in range(3):
+            j_reversed = abs(j - 2)
+            origin_piece_x = origin_face[0] + j*piece_width
+            origin_piece_y = origin_face[1] + i*piece_height
+            origin_piece = (origin_piece_x, origin_piece_y)
+            end_point_piece_x = origin_piece_x + piece_width
+            end_point_piece_y = origin_piece_y + piece_height
+            end_point_piece = (end_point_piece_x, end_point_piece_y)
+            
+            cv2.rectangle(img, origin_face, end_point_piece, colors_bgr["black"], 2)
+
+    draw_text(img, text = "DETECTION", origin = (496, 132))
+            
+
 # The function is used to supervise and guide the user to make correct turns and rotations
 # with the cube. It follows the structure and logic of the function detect face: check the
 # comments from there to understand the main structure.
@@ -976,7 +1029,7 @@ def make_turn(video, turn, previous_center_color, last_turn):
         success, img = get_img(video)
         if not success:
             return "failed", None
-        draw_instruction_text(img, instruction_text)
+        draw_text(img, instruction_text, origin = (10, 10))
         
         if not solved:
             masks = get_masks(img)
