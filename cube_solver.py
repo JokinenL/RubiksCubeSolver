@@ -1029,9 +1029,9 @@ def make_turn(video, turn, previous_center_color, last_turn):
         success, img = get_img(video)
         if not success:
             return "failed", None
-        draw_text(img, instruction_text, origin = (10, 10))
         
         if not solved:
+            draw_text(img, instruction_text, origin = (10, 10))
             masks = get_masks(img)
 
 
@@ -1096,8 +1096,10 @@ def make_turn(video, turn, previous_center_color, last_turn):
                     elif (faces_match(face_showing, red_pre_turn) and
                           center_color == "green"):
                         draw_arrows(img, "y'", piece_centers)
-        if solved:
-            instruction_text = "Cube solved! Press 'q' to close the window."
+
+        else: # if solved
+            draw_text(img, "CUBE SOLVED!", origin = (250, 10))
+            draw_text(img, "Press 'q' to close the window.", origin = (170, 35))
 
         cv2.imshow('img', img)
 
