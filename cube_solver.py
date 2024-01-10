@@ -853,8 +853,7 @@ def detect_face(video, center_color):
         # cv2.imshow('mask_white', masks[5])
         if not verified:
             draw_face(img, face)
-        else:
-            draw_face(img, gray_face)
+
 
         cv2.imshow('img', img)
 
