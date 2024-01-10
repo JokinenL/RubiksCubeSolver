@@ -16,7 +16,7 @@ low_r = np.array([160, 75, 75])
 high_r = np.array([180, 255, 255])
 low_g = np.array([55, 80, 80])
 high_g = np.array([85, 255, 255])
-low_o = np.array([5, 100, 100])
+low_o = np.array([2, 50, 50])
 high_o = np.array([17, 255, 255])
 low_y = np.array([20, 100, 100])
 high_y = np.array([40, 255, 255])
@@ -655,8 +655,11 @@ def find_face_and_get_centers(img, marginal = 10):
             piece_centers = np.empty((3,3), dtype="f,f")
 
             # Drawing the contour of the detected face so user can see that
-            # the face is detected.
+            # the face is detected. If the first line is active, the smallest rectangle
+            # outlining the cube is drawn and the secon line is active, the actual contour
+            # of the detected cube is drawn.
             cv2.drawContours(img, [box], 0, (0, 0, 100), 3)
+            # cv2.drawContours(img, [cnt_of_final_mask], 0, (0, 0, 100), 3)
 
             for i in range(3):
                 for j in range(3):
@@ -710,7 +713,6 @@ def detect_face(video, center_color):
     # the Cube-object.
     detected = False
     verified = False
-    gray_face = initialize_face()
 
     face = initialize_face()
     face_to_return = initialize_face()
@@ -727,9 +729,9 @@ def detect_face(video, center_color):
         if detected == verified:
         
             masks = get_masks(img)
-
-
             face_found, contour_face, piece_centers = find_face_and_get_centers(img)
+            piece_contours_info = get_piece_contours_info(masks)
+
 
             # This usually means that theres some kind of movement with the cube (turning or
             # rotating) which means it is time to initialize the detection process in order
@@ -742,19 +744,18 @@ def detect_face(video, center_color):
                 min_piece_area = 0.08*area_face
                 piece_contours_info = get_piece_contours_info(masks)
 
-
                 for color in piece_contours_info:
                     contours_i = piece_contours_info[color][0]
                     hierarchy_array = piece_contours_info[color][1]
 
                     for contour_index, contour_i in enumerate(contours_i):
+
                         area_cnt = cv2.contourArea(contour_i)
                         # Any contour outlining pieces inside the face should have
                         # more than three corners. Contours smaller than computed minimum
                         # area for a single piece are also ignored as noise.
                         if (len(contour_i) > 3 and
                             area_cnt >= min_piece_area):
-
 
                             for i in range(3):
                                 for j in range(3):
@@ -845,17 +846,17 @@ def detect_face(video, center_color):
         # Uncomment these to check if the color limits set in the beggining
         # are suitable for your environment.
 
-        # cv2.imshow('mask_blue', masks[0])
-        # cv2.imshow('mask_red', masks[1])
-        # cv2.imshow('mask_green', masks[2])
-        # cv2.imshow('mask_orange', masks[3])
-        # cv2.imshow('mask_yellow', masks[4])
-        # cv2.imshow('mask_white', masks[5])
+        cv2.imshow('mask_red', masks[1])
+        cv2.imshow('mask_green', masks[2])
+        cv2.imshow('mask_orange', masks[3])
+        cv2.imshow('mask_yellow', masks[4])
+        cv2.imshow('mask_white', masks[5])
+        
         if not verified:
             draw_face(img, face)
 
 
-        cv2.imshow('img', img)
+        cv2.imshow('CUBE SOLVER', img)
 
         pressed = cv2.waitKey(1)
 
@@ -1100,7 +1101,7 @@ def make_turn(video, turn, previous_center_color, last_turn):
             draw_text(img, "CUBE SOLVED!", origin = (250, 10))
             draw_text(img, "Press 'q' to close the window.", origin = (170, 35))
 
-        cv2.imshow('img', img)
+        cv2.imshow('CUBE SOLVER', img)
 
         pressed = cv2.waitKey(1)
 
