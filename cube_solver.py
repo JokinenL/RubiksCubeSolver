@@ -16,8 +16,8 @@ low_r = np.array([160, 75, 75])
 high_r = np.array([180, 255, 255])
 low_g = np.array([55, 80, 80])
 high_g = np.array([85, 255, 255])
-low_o = np.array([2, 50, 50])
-high_o = np.array([17, 255, 255])
+low_o = np.array([5, 75, 75])
+high_o = np.array([15, 255, 255])
 low_y = np.array([20, 100, 100])
 high_y = np.array([40, 255, 255])
 low_w = np.array([0, 0, 150])
@@ -586,7 +586,8 @@ def deg_to_rad(a_deg):
 # 2) contour of the face
 # 3) numpy array of piece center points
 
-def find_face_and_get_centers(img, marginal = 10):
+def find_face_and_get_centers(img, marginal = 20):
+
     mask_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     # Everything but black. Black background is necessary for program to work properly.
     low = np.array([0, 0, 100])
@@ -617,17 +618,21 @@ def find_face_and_get_centers(img, marginal = 10):
             box = cv2.boxPoints(rectangle)
             box = np.intp(box)
 
-            # Making sure that the object recognized is aprroximately square
+            # Making sure that the object recognized is aprroximately rectangle shaped
+            rectangle_shaped = True
             for point_as_array in cnt_of_final_mask:
                 point = (float(point_as_array[0][0]), float(point_as_array[0][1]))
                 dist = cv2.pointPolygonTest(box, point, True)
                 if dist > marginal:
-                    continue
+                    rectangle_shaped = False
+            if not rectangle_shaped:
+                continue
 
             # Computing the transition in x and y axis when moving in the set of cordinates
             # of the rotated cube.
             if 60 <= rotation_deg <= 90:
                 h, w = rectangle[1]
+                # Making sure that the object recognized is approximately square shaped
                 if abs(w - h) > marginal:
                     continue
                 w_step = w // 6
@@ -640,6 +645,7 @@ def find_face_and_get_centers(img, marginal = 10):
 
             else: # if 0 < rotation_deg <= 30:
                 w, h = rectangle[1]
+                # Making sure that the object recognized is approximately square shaped
                 if abs(w - h) > marginal:
                     continue
                 w_step = w // 6
@@ -669,7 +675,7 @@ def find_face_and_get_centers(img, marginal = 10):
                     piece_center_x = int(piece_center_x)
                     piece_center_y = int(piece_center_y)
                     img = cv2.circle(img, (piece_center_x, piece_center_y),
-                                    radius=2, color=(0, 0, 255), thickness=-1)
+                                     radius=2, color=(0, 0, 255), thickness=-1)
 
             return True, box, piece_centers
     
@@ -846,15 +852,15 @@ def detect_face(video, center_color):
         # Uncomment these to check if the color limits set in the beggining
         # are suitable for your environment.
 
-        cv2.imshow('mask_red', masks[1])
-        cv2.imshow('mask_green', masks[2])
-        cv2.imshow('mask_orange', masks[3])
-        cv2.imshow('mask_yellow', masks[4])
-        cv2.imshow('mask_white', masks[5])
+        # cv2.imshow('mask_red', masks[1])
+        # cv2.imshow('mask_green', masks[2])
+        # cv2.imshow('mask_orange', masks[3])
+        # cv2.imshow('mask_yellow', masks[4])
+        # cv2.imshow('mask_white', masks[5])
+        
         
         if not verified:
             draw_face(img, face)
-
 
         cv2.imshow('CUBE SOLVER', img)
 
